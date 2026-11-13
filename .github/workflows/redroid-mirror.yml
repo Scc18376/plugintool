@@ -12,7 +12,6 @@ on:
 
 permissions:
   contents: write
-  packages: write
 
 jobs:
   mirror:
@@ -25,14 +24,6 @@ jobs:
           docker pull --platform linux/arm64 "${{ inputs.image }}"
           docker tag "${{ inputs.image }}" redroid-arm64:latest
           docker images
-
-      - name: Push to ghcr
-        run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          IMG="ghcr.io/${{ github.repository_owner }}/redroid-arm64:11.0.0"
-          docker tag redroid-arm64:latest "$IMG"
-          docker push "$IMG"
-          echo "published: $IMG"
 
       - name: Save to tar
         run: |

@@ -1,6 +1,6 @@
 name: build-ipa
 
-# 不用 Xcode / xcodebuild：clang 直接交叉编译 + 手动打包 IPA
+# 不用 Xcode / xcodebuild：clang + ld 直接交叉编译，手动打包 IPA
 on:
   push:
     branches: [main]
@@ -8,58 +8,76 @@ on:
 
 jobs:
   ipa:
-    runs-on: macos-14          # Apple Silicon, 自带 iOS SDK
+    runs-on: macos-14          # Apple Silicon runner，自带 iOS SDK
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: PluginTool
+            src: ios/main.m
+            plist: ios/Info.plist
+            res: www
+            fw: "-framework UIKit -framework Foundation -framework WebKit -framework CoreGraphics -framework UniformTypeIdentifiers"
+          - name: TencentVideo
+            src: tvapp/main.m
+            plist: tvapp/Info.plist
+            res: ""
+            fw: "-framework UIKit -framework Foundation -framework WebKit -framework CoreGraphics -framework UniformTypeIdentifiers -framework AVKit -framework AVFoundation"
+    name: ${{ matrix.name }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Show SDK
+      - name: SDK
         run: |
           SDK=$(xcrun --sdk iphoneos --show-sdk-path)
-          echo "SDK=$SDK"
           echo "SDK=$SDK" >> $GITHUB_ENV
-          xcrun --sdk iphoneos --show-sdk-version
+          echo "sdk: $SDK"; xcrun --sdk iphoneos --show-sdk-version
 
-      - name: Compile (clang, no xcodebuild)
+      - name: Compile
         run: |
           mkdir -p build
           clang -target arm64-apple-ios14.0 -isysroot "$SDK" \
                 -fobjc-arc -fblocks -Os -w \
-                -c ios/main.m -o build/main.o
+                -c "${{ matrix.src }}" -o build/${{ matrix.name }}.o
 
-      - name: Link (ld64 + adhoc)
+      - name: Link
         run: |
           ld -arch arm64 -platform_version ios 14.0 14.0 -syslibroot "$SDK" \
-             -F"$SDK/System/Library/Frameworks" -o build/PluginTool build/main.o \
-             -framework UIKit -framework Foundation -framework WebKit \
-             -framework CoreGraphics -framework UniformTypeIdentifiers \
+             -F"$SDK/System/Library/Frameworks" \
+             -o build/${{ matrix.name }} build/${{ matrix.name }}.o \
+             ${{ matrix.fw }} \
              "$SDK/usr/lib/libSystem.B.tbd"
-          # 检查是否被 ld 自动 adhoc 签名，没有就补
-          codesign -dv build/PluginTool 2>&1 | head -3 || true
 
-      - name: Pack IPA (mode 755 on executable)
+      - name: Ad-hoc sign (codesign, 不是 xcodebuild)
+        run: codesign --force --sign - --timestamp=none build/${{ matrix.name }}
+
+      - name: Pack IPA
         run: |
           set -e
-          APP=PluginTool
+          APP=${{ matrix.name }}
           rm -rf Payload dist; mkdir -p "Payload/$APP.app" dist
-          cp build/$APP "Payload/$APP.app/$APP"
-          cp ios/Info.plist ios/PkgInfo "Payload/$APP.app/"
-          [ -d www ] && cp -R www "Payload/$APP.app/www"
-          chmod 755 "Payload/$APP.app/$APP"
+          cp "build/$APP" "Payload/$APP.app/$APP"
+          cp "${{ matrix.plist }}" "Payload/$APP.app/Info.plist"
+          printf 'APPL????' > "Payload/$APP.app/PkgInfo"
+          if [ -n "${{ matrix.res }}" ]; then cp -R "${{ matrix.res }}" "Payload/$APP.app/www"; fi
           find "Payload/$APP.app" -type d -exec chmod 755 {} \;
           find "Payload/$APP.app" -type f -exec chmod 644 {} \;
           chmod 755 "Payload/$APP.app/$APP"
           zip -qry "dist/$APP-unsigned.ipa" Payload
-          unzip -Z -l "dist/$APP-unsigned.ipa" | grep -E "$APP$"
-          test "$(unzip -Z -l dist/$APP-unsigned.ipa | grep -c '^-rwxr-xr-x.*PluginTool$')" -ge 1
+          echo "--- 校验 ---"
+          unzip -Z -l "dist/$APP-unsigned.ipa" | grep -E "(Payload/$APP.app/$APP$|Info.plist|PkgInfo)"
+          if ! unzip -Z -l "dist/$APP-unsigned.ipa" | grep -q "^-rwxr-xr-x.*$APP$"; then
+            echo "!! 可执行文件不是 755"; exit 1
+          fi
           ls -lh dist/
 
       - uses: actions/upload-artifact@v4
         with:
-          name: PluginTool-unsigned
+          name: ${{ matrix.name }}-ipa
           path: dist/*.ipa
           retention-days: 30
 
-      - name: Attach to release
+      - name: Release asset
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:

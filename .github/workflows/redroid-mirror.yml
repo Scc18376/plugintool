@@ -1,0 +1,53 @@
+name: mirror-redroid-arm64
+
+# 目的：Actions runner 能直连 Docker Hub，把 arm64 redroid 镜像
+# 转存成 ghcr 镜像 + 分卷 tar 挂 Release，国内服务器再拉 ghcr / 下 tar。
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        description: 'source image'
+        default: 'redroid/redroid:11.0.0-latest'
+        required: true
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-24.04-arm      # arm64 runner，与目标机同架构
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pull source image (arm64)
+        run: |
+          docker pull --platform linux/arm64 "${{ inputs.image }}"
+          docker tag "${{ inputs.image }}" redroid-arm64:latest
+          docker images
+
+      - name: Push to ghcr
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          IMG="ghcr.io/${{ github.repository_owner }}/redroid-arm64:11.0.0"
+          docker tag redroid-arm64:latest "$IMG"
+          docker push "$IMG"
+          echo "published: $IMG"
+
+      - name: Save to tar
+        run: |
+          docker save redroid-arm64:latest | zstd -19 -T0 -o redroid-arm64.tar.zst
+          ls -lh redroid-arm64.tar.zst
+          sha256sum redroid-arm64.tar.zst | tee redroid-arm64.tar.zst.sha256
+
+      - name: Split (2G chunks)
+        run: split -b 1900M -d redroid-arm64.tar.zst redroid-part- && ls -lh redroid-part-*
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: redroid-arm64
+          name: redroid arm64 image
+          files: |
+            redroid-part-*
+            redroid-arm64.tar.zst.sha256

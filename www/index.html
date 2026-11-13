@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0b0d12">
+<title>PluginTool</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <div class="title">主机</div>
+    <div class="badge" id="netBadge">检测中</div>
+  </header>
+
+  <section class="card host-card" id="hostCard">
+    <div class="host-row">
+      <div class="logo">香</div>
+      <div class="host-meta">
+        <div class="host-name">香港 <span class="dot" id="stateDot"></span></div>
+        <div class="host-addr" id="hostAddr">165.99.43.34:22</div>
+      </div>
+      <div class="host-user" id="hostUser">root</div>
+    </div>
+    <div class="host-grid">
+      <div><span>协议</span><b>SSH</b></div>
+      <div><span>端口</span><b id="portVal">22</b></div>
+      <div><span>认证</span><b>公钥</b></div>
+      <div><span>密钥</span><b>id_ed25519</b></div>
+    </div>
+    <div class="fp" id="fp">SHA256:…</div>
+    <div class="actions">
+      <button class="btn primary" id="btnConnect">连接</button>
+      <button class="btn" id="btnCmd">复制命令</button>
+      <button class="btn" id="btnCopyPub">公钥</button>
+    </div>
+    <div class="status" id="status">待连接</div>
+  </section>
+
+  <section class="card">
+    <div class="sec-title">控制台</div>
+    <pre class="log" id="log">PluginTool ready.
+等待操作…</pre>
+    <div class="actions">
+      <button class="btn" id="btnClear">清空</button>
+      <button class="btn" id="btnInfo">设备信息</button>
+      <button class="btn" id="btnExit">退出</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="sec-title">功能</div>
+    <ul class="feat">
+      <li>本地 www/ 资源直读，改前端只重新打包</li>
+      <li>window.pt(action, data) 原生桥（Promise）</li>
+      <li>SSH 端口直连探测 + 服务端 banner</li>
+      <li>剪贴板 / 震动 / 打开链接 / Toast / 退出</li>
+    </ul>
+  </section>
+  <div class="foot">PluginTool · iOS WebView Shell · <span id="ver">1.0</span></div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

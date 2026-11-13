@@ -1,0 +1,15 @@
+# 构建产物
+build/
+dist/
+*.o
+*.ipa
+
+# 大文件 / 附件
+apk/
+*.apk
+*.apk.*
+
+# 密钥（绝不入库）
+keys/
+id_ed25519*
+*.pem
